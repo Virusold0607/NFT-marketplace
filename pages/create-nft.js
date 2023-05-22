@@ -1,19 +1,10 @@
 import { useState } from "react";
 import { ethers } from "ethers";
-// import { create as ipfsHttpClient } from "ipfs-http-client";
-import { create } from "ipfs-http-client";
+import { create as ipfsHttpClient } from "ipfs-http-client";
 import { useRouter } from "next/router";
 import Web3Modal from "web3modal";
 
-
-// const client = ipfsHttpClient("https://ipfs.infura.io:5001/api/v0");
-
-const client = create({
-  host: "gateway.pinata.cloud",
-  port: 443,
-  protocol: "https",
-});
-console.log("client", client);
+const client = ipfsHttpClient("https://ipfs.infura.io:5001/api/v0");
 
 import { marketplaceAddress } from "../config";
 
@@ -29,14 +20,12 @@ export default function CreateItem() {
   const router = useRouter();
 
   async function onChange(e) {
-    console.log("onChange called");
     const file = e.target.files[0];
     try {
       const added = await client.add(file, {
         progress: (prog) => console.log(`received: ${prog}`),
       });
-      // const url = `https://ipfs.infura.io/ipfs/${added.path}`;
-      const url = `https://gateway.pinata.cloud/ipfs/${added.cid.toString()}`;
+      const url = `https://ipfs.infura.io/ipfs/${added.path}`;
       setFileUrl(url);
     } catch (error) {
       console.log("Error uploading file: ", error);
@@ -55,12 +44,8 @@ export default function CreateItem() {
 
     try {
       const added = await client.add(data);
-      // const url = `https://ipfs.infura.io/ipfs/${added.path}`;
-      console.log("added", added);
-      const url = `https://gateway.pinata.cloud/ipfs/${added.cid.toString()}`;
-      console.log("url", url);
-      setFileUrl(url);
-      console.log("fileUrl", fileUrl);
+      const url = `https://ipfs.infura.io/ipfs/${added.path}`;
+
       /* after file is uploaded to IPFS, return the URL to use it in the transaction */
       return url;
     } catch (error) {
