@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { ethers } from "ethers";
-import { create as ipfsHttpClient } from "ipfs-http-client";
+
 import { useRouter } from "next/router";
 import Web3Modal from "web3modal";
+import axios from "axios";
 
-const client = ipfsHttpClient("https://ipfs.infura.io:5001/api/v0");
 
 import { marketplaceAddress } from "../config";
-
 import NFTMarketplace from "../artifacts/contracts/NFTMarketplace.sol/NFTMarketplace.json";
+
+
 
 export default function CreateItem() {
   const [fileUrl, setFileUrl] = useState(null);
@@ -22,60 +23,82 @@ export default function CreateItem() {
   async function onChange(e) {
     const file = e.target.files[0];
     try {
-      const added = await client.add(file, {
-        progress: (prog) => console.log(`received: ${prog}`),
-      });
-      const url = `https://ipfs.infura.io/ipfs/${added.path}`;
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await axios.post(
+        "https://api.pinata.cloud/pinning/pinFileToIPFS",
+        formData,
+        {
+          maxContentLength: "Infinity",
+          headers: {
+            "Content-Type": `multipart/form-data; boundary=${formData._boundary}`,
+            pinata_api_key: "570c879df80544dd2c62",
+            pinata_secret_api_key: "51cb8f48c5aa38e8aa53f6551d27df69afae45837f60931adc4be63d4a243a41",
+          },
+        }
+      );
+      const url = `https://gateway.pinata.cloud/ipfs/${response.data.IpfsHash}`;
       setFileUrl(url);
     } catch (error) {
       console.log("Error uploading file: ", error);
     }
   }
+
   async function uploadToIPFS() {
     const { name, description, price } = formInput;
-    console.log("fileUrl", fileUrl);
+    console.log("fileurl", fileUrl);
     if (!name || !description || !price || !fileUrl) return;
-    /* first, upload to IPFS */
     const data = JSON.stringify({
       name,
       description,
       image: fileUrl,
     });
-
     try {
-      const added = await client.add(data);
-      const url = `https://ipfs.infura.io/ipfs/${added.path}`;
-
-      /* after file is uploaded to IPFS, return the URL to use it in the transaction */
+      const formData = new FormData();
+      formData.append("file", new Blob([data], { type: "application/json" }));
+      const response = await axios.post(
+        "https://api.pinata.cloud/pinning/pinFileToIPFS",
+        formData,
+        {
+          maxContentLength: "Infinity",
+          headers: {
+            "Content-Type": `multipart/form-data; boundary=${formData._boundary}`,
+            pinata_api_key: "570c879df80544dd2c62",
+            pinata_secret_api_key: "51cb8f48c5aa38e8aa53f6551d27df69afae45837f60931adc4be63d4a243a41",
+          },
+        }
+      );
+      const url = `https://gateway.pinata.cloud/ipfs/${response.data.IpfsHash}`;
       return url;
     } catch (error) {
       console.log("Error uploading file: ", error);
     }
   }
-
   async function listNFTForSale() {
-    const url = await uploadToIPFS();
-    const web3Modal = new Web3Modal();
-    const connection = await web3Modal.connect();
-    const provider = new ethers.providers.Web3Provider(connection);
-    const signer = provider.getSigner();
-
-    /* next, create the item */
-    const price = ethers.utils.parseUnits(formInput.price, "ether");
-    let contract = new ethers.Contract(
-      marketplaceAddress,
-      NFTMarketplace.abi,
-      signer
-    );
-    let listingPrice = await contract.getListingPrice();
-    listingPrice = listingPrice.toString();
-    let transaction = await contract.createToken(url, price, {
-      value: listingPrice,
-    });
-    await transaction.wait();
-
-    router.push("/");
+  if (!fileUrl) {
+    console.log("Please select a file");
+    return;
   }
+  const web3Modal = new Web3Modal();
+  const connection = await web3Modal.connect();
+  const provider = new ethers.providers.Web3Provider(connection);
+  const signer = provider.getSigner();
+  const price = ethers.utils.parseUnits(formInput.price, "ether");
+  let contract = new ethers.Contract(
+    marketplaceAddress,
+    NFTMarketplace.abi,
+    signer
+  );
+  let listingPrice = await contract.getListingPrice();
+  listingPrice = listingPrice.toString();
+  await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait for 1 second
+  const url = await uploadToIPFS();
+  let transaction = await contract.createToken(url, price, {
+    value: listingPrice,
+  });
+  await transaction.wait();
+  router.push("/");
+}
 
   return (
     <div className="flex justify-center">
